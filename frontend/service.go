@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/zcash/lightwalletd/common"
+	"github.com/zcash/lightwalletd/parser"
 	"github.com/zcash/lightwalletd/walletrpc"
 )
 
@@ -310,6 +311,52 @@ func (s *lwdStreamer) GetTaddressBalanceStream(addresses walletrpc.CompactTxStre
 		return err
 	}
 	addresses.SendAndClose(balance)
+	return nil
+}
+
+func (s *lwdStreamer) GetMempoolTx(exclude *walletrpc.Exclude, resp walletrpc.CompactTxStreamer_GetMempoolTxServer) error {
+	params := make([]json.RawMessage, 0)
+	result, rpcErr := common.RawRequest("getrawmempool", params)
+	if rpcErr != nil {
+		return rpcErr
+	}
+	var txidlist []string
+	err := json.Unmarshal(result, &txidlist)
+	if err != nil {
+		return err
+	}
+	for _, txidstr := range txidlist {
+		params := []json.RawMessage{
+			json.RawMessage("\"" + txidstr + "\""),
+			json.RawMessage("1"),
+		}
+		result, rpcErr := common.RawRequest("getrawtransaction", params)
+		if rpcErr != nil {
+			// Not an error; mempool transactions can disappear
+			common.Log.Errorf("GetTransaction error: %s", rpcErr.Error())
+			continue
+		}
+		var txinfo struct {
+			Hex    string
+			Height int
+		}
+		err = json.Unmarshal(result, &txinfo)
+		if err != nil {
+			return err
+		}
+		txdata, err := hex.DecodeString(txinfo.Hex)
+		if err != nil {
+			return err
+		}
+		tx := parser.NewTransaction()
+		txdata, err = tx.ParseFromSlice(txdata)
+		if tx.HasSaplingElements() {
+			err := resp.Send(tx.ToCompact(0))
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 

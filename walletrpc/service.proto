@@ -96,6 +96,10 @@ message Balance {
     int64 valueZat = 1;
 }
 
+message Exclude {
+    repeated bytes txid = 1;
+}
+
 service CompactTxStreamer {
     // Return the height of the tip of the best chain
     rpc GetLatestBlock(ChainSpec) returns (BlockID) {}
@@ -113,6 +117,8 @@ service CompactTxStreamer {
     rpc GetTaddressTxids(TransparentAddressBlockFilter) returns (stream RawTransaction) {}
     rpc GetTaddressBalance(AddressList) returns (Balance) {}
     rpc GetTaddressBalanceStream(stream Address) returns (Balance) {}
+
+    rpc GetMempoolTx(Exclude) returns (stream CompactTx) {}
 
     // Return information about this lightwalletd instance and the blockchain
     rpc GetLightdInfo(Empty) returns (LightdInfo) {}
